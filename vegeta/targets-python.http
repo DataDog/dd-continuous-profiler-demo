@@ -1,0 +1,3 @@
+GET http://movies-api-python:9081/movies?q=jurassic
+GET http://movies-api-python:9081/old-movies?year=2010
+GET http://movies-api-python:9081/stats?q=the
