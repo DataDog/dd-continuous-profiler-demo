@@ -1,146 +1,52 @@
-version: '3'
 services:
-  movies-api-mongo:
+  mongodb:
     image: mongo:5
     volumes:
-    - ./mongo-seed:/docker-entrypoint-initdb.d
+      - ./mongo-seed:/docker-entrypoint-initdb.d
     ports:
-    - 27017:27017
+      - 27017:27017
 
-  datadog-agent:
+  ddagent:
     image: datadog/agent:latest
     environment:
-      DD_API_KEY: ${DD_API_KEY}
-      DD_REMOTE_CONFIGURATION_ENABLED: 'true'
-      DD_APM_ENABLED: 'true'
-      DD_SITE: 'datadoghq.com'
-      DD_APM_NON_LOCAL_TRAFFIC: 'true'
-      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: 'true'
+      - DD_HOSTNAME=github-actions-worker
+      - DD_BIND_HOST=0.0.0.0
+      - DD_REMOTE_CONFIGURATION_ENABLED=true
+      - DD_SITE=datad0g.com
+      - DD_API_KEY=
+      - DD_REMOTE_CONFIGURATION_KEY=${DD_REMOTE_CONFIGURATION_KEY-invalid_but_this_is_fine}
+      - DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL=5s
+      - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
+      - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+      - DD_APM_NON_LOCAL_TRAFFIC=true
+    ports:
+      - 8126:8126
+      - 8125:8125/udp
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /proc/:/host/proc/:ro
-      - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
-    expose:
-      - "8126"
+      - ddagent:/tmp/ddagent:rw
 
-  intro-movies-api-java:
+  movies-api-python:
     build:
       context: .
-      dockerfile: Dockerfile.intro
+      dockerfile: python-app/Dockerfile
     ports:
-      - 8085:8085
+      - 8080:8080
     environment:
-      DD_AGENT_HOST: "datadog-agent"
-      DD_RUNTIME_METRICS_ENABLED: "true"
-      DD_TAGS: ${DD_TAGS}
-      MONGO_URI: mongodb://movies-api-mongo:27017
-      MOVIES_API_PORT: 8085
+      DD_AGENT_HOST: "ddagent"
+      DD_SERVICE: "movies-api-python"
+      DD_ENV: "prod"
+      DD_PROFILING_ENABLED: "true"
+      MONGO_URI: mongodb://mongodb:27017
+      MOVIES_API_PORT: 8080
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8085/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/" ]
       interval: 10s
       timeout: 5s
       retries: 3
     depends_on:
-      - datadog-agent
-      - movies-api-mongo
+      - ddagent
+      - mongodb
     restart: always
 
-  movies-api-java:
-    build:
-      context: .
-      dockerfile: Dockerfile.movies
-    ports:
-      - 8081:8081
-    environment:
-      DD_AGENT_HOST: "datadog-agent"
-      DD_RUNTIME_METRICS_ENABLED: "true"
-      DD_TAGS: ${DD_TAGS}
-      MONGO_URI: mongodb://movies-api-mongo:27017
-      MOVIES_API_PORT: 8081
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    depends_on:
-      - datadog-agent
-      - movies-api-mongo
-    restart: always
-
-  leaky-api-java:
-    build:
-      context: .
-      dockerfile: Dockerfile.leaky
-    ports:
-      - 8082:8082
-    environment:
-      DD_AGENT_HOST: "datadog-agent"
-      DD_RUNTIME_METRICS_ENABLED: "true"
-      DD_TAGS: ${DD_TAGS}
-      MONGO_URI: mongodb://movies-api-mongo:27017
-      MOVIES_API_PORT: 8082
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    depends_on:
-      - datadog-agent
-      - movies-api-mongo
-    restart: always
-
-  movies-api-java-timeline:
-    build:
-      context: .
-      dockerfile: Dockerfile.timeline
-    ports:
-      - 8083:8083
-    environment:
-      DD_AGENT_HOST: "datadog-agent"
-      DD_RUNTIME_METRICS_ENABLED: "true"
-      DD_TAGS: ${DD_TAGS}
-      MONGO_URI: mongodb://movies-api-mongo:27017
-      MOVIES_API_PORT: 8083
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    depends_on:
-      - datadog-agent
-      - movies-api-mongo
-    restart: always
-
-  loadgen-leak:
-    build:
-      context: ./vegeta
-    depends_on:
-      - leaky-api-java
-    environment:
-    # if you want to override the target URL:
-     - TARGET_URL=http://leaky-api-java:8082/movies
-     - LOAD_GEN_MODE=1
-
-  loadgen-movies-api:
-    build:
-      context: ./vegeta
-    depends_on:
-      - movies-api-java
-    environment:
-      - LOAD_GEN_MODE=2
-
-  loadgen-timeline:
-    build:
-      context: ./vegeta
-    depends_on:
-      - movies-api-java-timeline
-    environment:
-      - LOAD_GEN_MODE=3
-
-  loadgen-movies-api-intro:
-    build:
-      context: ./vegeta
-    depends_on:
-      - intro-movies-api-java
-    environment:
-      - LOAD_GEN_MODE=4
+volumes:
+  ddagent:

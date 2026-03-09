@@ -1,3 +1,0 @@
-GET http://movies-api-java:8081/movies?q=jurassic
-GET http://movies-api-java:8081/old-movies?year=2010
-GET http://movies-api-java:8081/stats?q=the

@@ -1,0 +1,5 @@
+flask==3.0.0
+pymongo==4.6.0
+gunicorn==21.2.0
+
+ddtrace @ https://dd-trace-py-builds.s3.amazonaws.com/94609875/ddtrace-4.4.0rc4-cp312-cp312-macosx_14_0_arm64.whl
