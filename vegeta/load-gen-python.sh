@@ -15,10 +15,15 @@ function load-gen-leak-python() {
   pkill -f vegeta &> /dev/null || true
 
   load-gen-target-generator \
-    | vegeta attack -lazy -format=json -rate=1 -duration=0 -max-workers=1 \
+    | vegeta attack -lazy -format=json -rate=10 -duration=0 -max-workers=4 \
     &> /dev/null &
 
-  echo "🕹  Vegeta leak-test running against ${TARGET_URL}"
+  THREAD_LEAK_URL="${TARGET_URL%/*}/spawn-thread"
+  echo "GET ${THREAD_LEAK_URL}" \
+    | vegeta attack -rate=6/m -duration=0 -max-workers=1 \
+    &> /dev/null &
+
+  echo "🕹  Vegeta leak-test running against ${TARGET_URL} (10 req/s) + thread leak (6/min)"
   tail -f /dev/null
 }
 

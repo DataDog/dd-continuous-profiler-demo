@@ -13,6 +13,7 @@ import os
 import random
 import re
 import threading
+import time
 from collections import defaultdict
 from dataclasses import asdict
 from datetime import date, datetime
@@ -33,7 +34,11 @@ app = Flask(__name__)
 
 
 class Metrics:
-    """Intentional memory leak: stores ~5MB of random data per request."""
+    """Intentional memory leak using many small Python objects.
+
+    Uses dicts/lists/strings that allocate through pymalloc so the leak is
+    visible to dd-trace-py's heap profiler (@prof_python_lifetime_heap_bytes).
+    """
 
     def __init__(self, req):
         self.req_method = req.method
@@ -41,7 +46,10 @@ class Metrics:
         self.req_args = str(req.args)
         self.req_headers = str(dict(req.headers))
         self.date = datetime.utcnow()
-        self.chunks = [bytearray(os.urandom(1_000_000)) for _ in range(5)]
+        self.data = [
+            {"key": f"val_{i}", "nested": list(range(100))}
+            for i in range(5000)
+        ]
 
 
 # Unbounded list - the leak (mirrors Java LinkedList<Metrics>)
@@ -99,6 +107,15 @@ def is_older_than(year: str, movie: Movie) -> bool:
     result = (movie.releaseDate or "") < year
     LOG.debug("Is %s older than %s? %s", movie, year, result)
     return result
+
+
+@app.route("/spawn-thread")
+def spawn_thread_endpoint():
+    """Spawns a daemon thread that sleeps forever, causing thread count to grow."""
+    collect_metrics(request)
+    t = threading.Thread(target=lambda: time.sleep(86400), daemon=True)
+    t.start()
+    return jsonify({"status": "thread spawned", "count": threading.active_count()})
 
 
 @app.route("/")
