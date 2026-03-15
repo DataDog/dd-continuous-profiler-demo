@@ -211,7 +211,7 @@ services:
       DD_RUNTIME_METRICS_ENABLED: "true"
       DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED: "true"
       DD_PROFILING_ENABLED: "true"
-      DD_PROFILING_UPLOAD_PERIOD: "60"
+      DD_PROFILING_UPLOAD_PERIOD: "10"
       DD_TAGS: ${DD_TAGS}
       MONGO_URI: mongodb://movies-api-mongo:27017
       MOVIES_API_PORT: 9082
