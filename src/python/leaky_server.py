@@ -33,7 +33,7 @@ app = Flask(__name__)
 
 
 class Metrics:
-    """Intentional memory leak: stores ~1MB of metadata per request."""
+    """Intentional memory leak: stores ~5MB of random data per request."""
 
     def __init__(self, req):
         self.req_method = req.method
@@ -41,7 +41,7 @@ class Metrics:
         self.req_args = str(req.args)
         self.req_headers = str(dict(req.headers))
         self.date = datetime.utcnow()
-        self.metadata = "x" * 1_000_000  # 1MB padding
+        self.chunks = [bytearray(os.urandom(1_000_000)) for _ in range(5)]
 
 
 # Unbounded list - the leak (mirrors Java LinkedList<Metrics>)
