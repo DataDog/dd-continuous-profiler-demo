@@ -48,7 +48,7 @@ class Metrics:
         self.date = datetime.utcnow()
         self.data = [
             {"key": f"val_{i}", "nested": list(range(100))}
-            for i in range(10000)
+            for i in range(50000)
         ]
 
 
