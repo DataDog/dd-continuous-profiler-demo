@@ -130,7 +130,7 @@ step "4/7  Starting services"
 for svc in $SERVICES_TO_START; do
     echo "  -> $svc"
 done
-docker compose up -d $SERVICES_TO_START 2>&1 | grep -v "variable is not set" | grep -v "attribute.*version.*obsolete" || true
+docker compose up --build -d $SERVICES_TO_START 2>&1 | grep -v "variable is not set" | grep -v "attribute.*version.*obsolete" || true
 info "Containers started"
 
 # ---------------------------------------------------------------------------
@@ -216,8 +216,8 @@ for name in "${REQUESTED[@]}"; do
     svc_name="${svc//-api-python/}"
     svc_name="${svc_name//-python/}"
     echo "  ${name}:"
-    echo "    Staging:  https://dd.datad0g.com/apm/entity/service%3A${svc}?env=prod"
-    echo "    Local:    https://dd-dev-local.datad0g.com/apm/entity/service%3A${svc}?env=prod&set_config_profiling-memory-leaks-tab-for-python=true&set_config_profiling-memory-leaks-tab-generic-orchestrators=true#profiling"
+    echo "    Staging:  https://app.datad0g.com/apm/entity/service%3A${svc}?env=prod"
+    echo "    Local:    https://app-dev-local.datad0g.com/apm/entity/service%3A${svc}?env=prod&set_config_profiling-memory-leaks-tab-for-python=true&set_config_profiling-memory-leaks-tab-generic-orchestrators=true#profiling"
     echo ""
 done
 

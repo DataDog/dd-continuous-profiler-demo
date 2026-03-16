@@ -21,7 +21,7 @@ from datetime import date, datetime
 from flask import Flask, request, jsonify
 
 from common import (
-    Movie, Credit, CrewRole, MovieWithCredits, StatsResult,
+    Movie, CrewRole, MovieWithCredits, StatsResult,
     get_movies, get_credits,
 )
 
@@ -48,7 +48,7 @@ class Metrics:
         self.date = datetime.utcnow()
         self.data = [
             {"key": f"val_{i}", "nested": list(range(100))}
-            for i in range(5000)
+            for i in range(10000)
         ]
 
 
