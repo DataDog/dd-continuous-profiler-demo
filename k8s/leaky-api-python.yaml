@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: leaky-api-python
+  namespace: profiling-demo
+spec:
+  selector:
+    app: leaky-api-python
+  ports:
+    - port: 9082
+      targetPort: 9082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leaky-api-python
+  namespace: profiling-demo
+  labels:
+    tags.datadoghq.com/env: prod
+    tags.datadoghq.com/service: leaky-api-python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leaky-api-python
+  template:
+    metadata:
+      labels:
+        app: leaky-api-python
+        tags.datadoghq.com/env: prod
+        tags.datadoghq.com/service: leaky-api-python
+      annotations:
+        ad.datadoghq.com/leaky-api-python.logs: '[{"source":"python","service":"leaky-api-python"}]'
+    spec:
+      shareProcessNamespace: true
+      containers:
+        - name: leaky-api-python
+          image: leaky-api-python:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9082
+          env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_RUNTIME_METRICS_ENABLED
+              value: "true"
+            - name: DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED
+              value: "true"
+            - name: DD_PROFILING_ENABLED
+              value: "true"
+            - name: DD_PROFILING_UPLOAD_PERIOD
+              value: "10"
+            - name: DD_ENV
+              value: "prod"
+            - name: DD_SERVICE
+              value: "leaky-api-python"
+            - name: DD_TAGS
+              value: "env:prod"
+            - name: DD_ENTITY_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: MONGO_URI
+              value: "mongodb://movies-api-mongo.profiling-demo.svc:27017"
+            - name: MOVIES_API_PORT
+              value: "9082"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9082
+            initialDelaySeconds: 10
+            periodSeconds: 30

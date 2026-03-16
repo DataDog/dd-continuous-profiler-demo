@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen-leak-python
+  namespace: profiling-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen-leak-python
+  template:
+    metadata:
+      labels:
+        app: loadgen-leak-python
+    spec:
+      containers:
+        - name: loadgen
+          image: loadgen-python:latest
+          imagePullPolicy: Never
+          env:
+            - name: TARGET_URL
+              value: "http://leaky-api-python.profiling-demo.svc:9082/movies"
+            - name: LOAD_GEN_MODE
+              value: "1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
