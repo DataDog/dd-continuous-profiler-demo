@@ -27,8 +27,8 @@ class CyclicNode:
 
     def __init__(self):
         self.peer = None
-        # ~2 KB payload; 20 groups × 2 nodes × 2 KB ≈ 80 KB/req → ~15 min OOM at 256 Mi, 3.5 req/s
-        self.payload = list(range(70))
+        # ~2.5 KB payload; 50 groups × 2 nodes × 2.5 KB ≈ 250 KB/req
+        self.payload = list(range(100))
 
 
 def create_cyclic_group():
@@ -42,11 +42,11 @@ def create_cyclic_group():
 
 @app.route("/")
 def index():
-    for _ in range(20):
+    for _ in range(50):
         SURVIVOR_POOL.append(create_cyclic_group())
-    # Force gen2 collection so runtime.python.gc.count.gen2 grows steadily
-    # (natural gen2 runs ~every 70k allocations; explicit collect makes it visible)
-    gc.collect(2)
+    # Force many gen2 collections so runtime.python.gc.count.gen2 grows steeply
+    for _ in range(20):
+        gc.collect(2)
     gen2 = gc.get_stats()[2]["collections"]
     return jsonify({
         "status": "gc pressure applied",
