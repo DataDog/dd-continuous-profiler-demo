@@ -45,6 +45,22 @@ function load-gen-intro-python() {
     tail -f /dev/null
 }
 
+function load-gen-simple() {
+  local url="$1"
+  local label="$2"
+  local rate="${3:-2}"
+  pkill -f vegeta &> /dev/null || true
+
+  while true; do
+    echo "{\"method\": \"GET\", \"url\": \"${url}\"}"
+    sleep 0.5
+  done | vegeta attack -lazy -format=json -rate="${rate}" -duration=0 -max-workers=2 \
+    &> /dev/null &
+
+  echo "🕹  Vegeta ${label} running against ${url} (${rate} req/s)"
+  tail -f /dev/null
+}
+
 if [ "$LOAD_GEN_MODE" -eq 1 ]; then
   echo "Mode 1: running leak load gen (Python)"
   load-gen-leak-python
@@ -57,6 +73,15 @@ elif [ "$LOAD_GEN_MODE" -eq 3 ]; then
 elif [ "$LOAD_GEN_MODE" -eq 4 ]; then
   echo "Mode 4: running intro load gen (Python)"
   load-gen-intro-python
+elif [ "$LOAD_GEN_MODE" -eq 5 ]; then
+  echo "Mode 5: running thread-leak load gen (Python)"
+  load-gen-simple "${TARGET_URL}" "thread-leak" 2
+elif [ "$LOAD_GEN_MODE" -eq 6 ]; then
+  echo "Mode 6: running gc-pressure load gen (Python)"
+  load-gen-simple "${TARGET_URL}" "gc-pressure" 2
+elif [ "$LOAD_GEN_MODE" -eq 7 ]; then
+  echo "Mode 7: running native-leak load gen (Python)"
+  load-gen-simple "${TARGET_URL}" "native-leak" 2
 else
-  echo "Unknown LOAD_GEN_MODE: $LOAD_GEN_MODE (expected 1-4)"
+  echo "Unknown LOAD_GEN_MODE: $LOAD_GEN_MODE (expected 1-7)"
 fi

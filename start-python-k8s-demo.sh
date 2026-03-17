@@ -16,6 +16,9 @@ cd "$DEMO_DIR"
 CLUSTER_NAME="profiling-demo"
 NAMESPACE="profiling-demo"
 LEAKY_IMAGE="leaky-api-python:latest"
+THREAD_LEAKY_IMAGE="thread-leaky-api-python:latest"
+GC_PRESSURE_IMAGE="gc-pressure-api-python:latest"
+NATIVE_LEAKY_IMAGE="native-leaky-api-python:latest"
 LOADGEN_IMAGE="loadgen-python:latest"
 
 RED='\033[0;31m'
@@ -83,6 +86,15 @@ step "2/8  Building Docker images"
 docker build -t "$LEAKY_IMAGE" -f Dockerfile.leaky-python . 2>&1 | tail -3
 info "Built $LEAKY_IMAGE"
 
+docker build -t "$THREAD_LEAKY_IMAGE" -f Dockerfile.thread-leaky-python . 2>&1 | tail -3
+info "Built $THREAD_LEAKY_IMAGE"
+
+docker build -t "$GC_PRESSURE_IMAGE" -f Dockerfile.gc-pressure-python . 2>&1 | tail -3
+info "Built $GC_PRESSURE_IMAGE"
+
+docker build -t "$NATIVE_LEAKY_IMAGE" -f Dockerfile.native-leaky-python . 2>&1 | tail -3
+info "Built $NATIVE_LEAKY_IMAGE"
+
 docker build -t "$LOADGEN_IMAGE" -f vegeta/Dockerfile.python vegeta/ 2>&1 | tail -3
 info "Built $LOADGEN_IMAGE"
 
@@ -117,6 +129,15 @@ step "4/8  Loading images into Kind cluster"
 kind load docker-image "$LEAKY_IMAGE" --name "$CLUSTER_NAME" 2>&1 | tail -1
 info "Loaded $LEAKY_IMAGE"
 
+kind load docker-image "$THREAD_LEAKY_IMAGE" --name "$CLUSTER_NAME" 2>&1 | tail -1
+info "Loaded $THREAD_LEAKY_IMAGE"
+
+kind load docker-image "$GC_PRESSURE_IMAGE" --name "$CLUSTER_NAME" 2>&1 | tail -1
+info "Loaded $GC_PRESSURE_IMAGE"
+
+kind load docker-image "$NATIVE_LEAKY_IMAGE" --name "$CLUSTER_NAME" 2>&1 | tail -1
+info "Loaded $NATIVE_LEAKY_IMAGE"
+
 kind load docker-image "$LOADGEN_IMAGE" --name "$CLUSTER_NAME" 2>&1 | tail -1
 info "Loaded $LOADGEN_IMAGE"
 
@@ -145,6 +166,9 @@ else
     info "Agent DaemonSet applied"
 fi
 kubectl apply -f k8s/leaky-api-python.yaml
+kubectl apply -f k8s/thread-leaky-api-python.yaml
+kubectl apply -f k8s/gc-pressure-api-python.yaml
+kubectl apply -f k8s/native-leaky-api-python.yaml
 kubectl apply -f k8s/loadgen.yaml
 info "All manifests applied"
 
@@ -152,7 +176,13 @@ info "All manifests applied"
 if $IS_REBUILD; then
     step "  Restarting deployments for image refresh"
     kubectl rollout restart deployment/leaky-api-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/thread-leaky-api-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/gc-pressure-api-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/native-leaky-api-python -n "$NAMESPACE"
     kubectl rollout restart deployment/loadgen-leak-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/loadgen-thread-leak-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/loadgen-gc-pressure-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/loadgen-native-leak-python -n "$NAMESPACE"
 fi
 
 # ---------------------------------------------------------------------------
@@ -163,11 +193,29 @@ step "7/8  Waiting for pods to be ready"
 kubectl rollout status deployment/leaky-api-python -n "$NAMESPACE" --timeout=120s || \
     warn "leaky-api-python deployment not ready within 120s"
 
+kubectl rollout status deployment/thread-leaky-api-python -n "$NAMESPACE" --timeout=120s || \
+    warn "thread-leaky-api-python deployment not ready within 120s"
+
+kubectl rollout status deployment/gc-pressure-api-python -n "$NAMESPACE" --timeout=120s || \
+    warn "gc-pressure-api-python deployment not ready within 120s"
+
+kubectl rollout status deployment/native-leaky-api-python -n "$NAMESPACE" --timeout=120s || \
+    warn "native-leaky-api-python deployment not ready within 120s"
+
 kubectl rollout status daemonset/datadog-agent -n "$NAMESPACE" --timeout=120s || \
     warn "datadog-agent daemonset not ready within 120s"
 
 kubectl rollout status deployment/loadgen-leak-python -n "$NAMESPACE" --timeout=60s || \
     warn "loadgen-leak-python deployment not ready within 60s"
+
+kubectl rollout status deployment/loadgen-thread-leak-python -n "$NAMESPACE" --timeout=60s || \
+    warn "loadgen-thread-leak-python deployment not ready within 60s"
+
+kubectl rollout status deployment/loadgen-gc-pressure-python -n "$NAMESPACE" --timeout=60s || \
+    warn "loadgen-gc-pressure-python deployment not ready within 60s"
+
+kubectl rollout status deployment/loadgen-native-leak-python -n "$NAMESPACE" --timeout=60s || \
+    warn "loadgen-native-leak-python deployment not ready within 60s"
 
 echo ""
 kubectl get pods -n "$NAMESPACE" -o wide
@@ -183,7 +231,12 @@ LEAKY_POD=$(kubectl get pods -n "$NAMESPACE" -l app=leaky-api-python -o jsonpath
 echo ""
 echo "  Cluster:   kind-${CLUSTER_NAME}"
 echo "  Namespace: ${NAMESPACE}"
-echo "  Leaky pod: ${LEAKY_POD}"
+echo ""
+echo "  Services running:"
+echo "    leaky-api-python          — heap leak (OOM ~30 min)"
+echo "    thread-leaky-api-python   — thread count grows"
+echo "    gc-pressure-api-python    — GC gen2 collections grow"
+echo "    native-leaky-api-python   — native malloc leak (RSS >> heap)"
 echo ""
 echo "  Profiling data will appear on Datadog within 1-2 minutes."
 echo ""

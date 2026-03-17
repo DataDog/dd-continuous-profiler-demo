@@ -1,44 +1,43 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: leaky-api-python
+  name: gc-pressure-api-python
   namespace: profiling-demo
 spec:
   selector:
-    app: leaky-api-python
+    app: gc-pressure-api-python
   ports:
-    - port: 9082
-      targetPort: 9082
+    - port: 9087
+      targetPort: 9087
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: leaky-api-python
+  name: gc-pressure-api-python
   namespace: profiling-demo
   labels:
     tags.datadoghq.com/env: prod
-    tags.datadoghq.com/service: leaky-api-python
+    tags.datadoghq.com/service: gc-pressure-api-python
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: leaky-api-python
+      app: gc-pressure-api-python
   template:
     metadata:
       labels:
-        app: leaky-api-python
+        app: gc-pressure-api-python
         tags.datadoghq.com/env: prod
-        tags.datadoghq.com/service: leaky-api-python
+        tags.datadoghq.com/service: gc-pressure-api-python
       annotations:
-        ad.datadoghq.com/leaky-api-python.logs: '[{"source":"python","service":"leaky-api-python"}]'
+        ad.datadoghq.com/gc-pressure-api-python.logs: '[{"source":"python","service":"gc-pressure-api-python"}]'
     spec:
-      shareProcessNamespace: true
       containers:
-        - name: leaky-api-python
-          image: leaky-api-python:latest
+        - name: gc-pressure-api-python
+          image: gc-pressure-api-python:latest
           imagePullPolicy: Never
           ports:
-            - containerPort: 9082
+            - containerPort: 9087
           env:
             - name: DD_AGENT_HOST
               valueFrom:
@@ -55,32 +54,30 @@ spec:
             - name: DD_ENV
               value: "prod"
             - name: DD_SERVICE
-              value: "leaky-api-python"
+              value: "gc-pressure-api-python"
             - name: DD_TAGS
               value: "env:prod"
             - name: DD_ENTITY_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.uid
-            - name: MONGO_URI
-              value: "mongodb://movies-api-mongo.profiling-demo.svc:27017"
             - name: MOVIES_API_PORT
-              value: "9082"
+              value: "9087"
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
-              memory: 2Gi
+              memory: 256Mi
           readinessProbe:
             httpGet:
-              path: /
-              port: 9082
+              path: /health
+              port: 9087
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
-              port: 9082
+              path: /health
+              port: 9087
             initialDelaySeconds: 10
             periodSeconds: 30
