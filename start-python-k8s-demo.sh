@@ -3,10 +3,13 @@
 # Start the Python profiling demo on a local Kind (Kubernetes in Docker) cluster.
 #
 # Usage:
-#   ./start-python-k8s-demo.sh              # create cluster, build, deploy, print URLs
-#   ./start-python-k8s-demo.sh --stop       # delete the kind cluster
-#   ./start-python-k8s-demo.sh --rebuild    # rebuild images + rollout restart (cluster stays)
-#   ./start-python-k8s-demo.sh --status     # show pod status
+#   ./start-python-k8s-demo.sh                    # create cluster, build, deploy, print URLs
+#   ./start-python-k8s-demo.sh --stop              # delete the kind cluster
+#   ./start-python-k8s-demo.sh --rebuild           # rebuild all images + rollout restart (cluster stays)
+#   ./start-python-k8s-demo.sh --rebuild SERVICE   # rebuild + restart only SERVICE (e.g. leaky-api-python)
+#   ./start-python-k8s-demo.sh --status            # show pod status
+#
+# Services: leaky-api-python, thread-leaky-api-python, gc-pressure-api-python, native-leaky-api-python, loadgen
 #
 set -euo pipefail
 
@@ -20,6 +23,37 @@ THREAD_LEAKY_IMAGE="thread-leaky-api-python:latest"
 GC_PRESSURE_IMAGE="gc-pressure-api-python:latest"
 NATIVE_LEAKY_IMAGE="native-leaky-api-python:latest"
 LOADGEN_IMAGE="loadgen-python:latest"
+
+# Map service name -> (dockerfile, build_context, image, manifest, deployments...)
+# build_context is . or vegeta/
+declare -A SVC_DOCKERFILE
+declare -A SVC_BUILD_CTX
+declare -A SVC_IMAGE
+declare -A SVC_MANIFEST
+SVC_DOCKERFILE[leaky-api-python]="Dockerfile.leaky-python"
+SVC_BUILD_CTX[leaky-api-python]="."
+SVC_IMAGE[leaky-api-python]="$LEAKY_IMAGE"
+SVC_MANIFEST[leaky-api-python]="k8s/leaky-api-python.yaml"
+
+SVC_DOCKERFILE[thread-leaky-api-python]="Dockerfile.thread-leaky-python"
+SVC_BUILD_CTX[thread-leaky-api-python]="."
+SVC_IMAGE[thread-leaky-api-python]="$THREAD_LEAKY_IMAGE"
+SVC_MANIFEST[thread-leaky-api-python]="k8s/thread-leaky-api-python.yaml"
+
+SVC_DOCKERFILE[gc-pressure-api-python]="Dockerfile.gc-pressure-python"
+SVC_BUILD_CTX[gc-pressure-api-python]="."
+SVC_IMAGE[gc-pressure-api-python]="$GC_PRESSURE_IMAGE"
+SVC_MANIFEST[gc-pressure-api-python]="k8s/gc-pressure-api-python.yaml"
+
+SVC_DOCKERFILE[native-leaky-api-python]="Dockerfile.native-leaky-python"
+SVC_BUILD_CTX[native-leaky-api-python]="."
+SVC_IMAGE[native-leaky-api-python]="$NATIVE_LEAKY_IMAGE"
+SVC_MANIFEST[native-leaky-api-python]="k8s/native-leaky-api-python.yaml"
+
+SVC_DOCKERFILE[loadgen]="vegeta/Dockerfile.python"
+SVC_BUILD_CTX[loadgen]="vegeta"
+SVC_IMAGE[loadgen]="$LOADGEN_IMAGE"
+SVC_MANIFEST[loadgen]="k8s/loadgen.yaml"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -47,6 +81,69 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${1:-}" == "--status" ]]; then
     kubectl get pods -n "$NAMESPACE" -o wide 2>/dev/null || echo "Cluster not found or namespace missing"
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# --rebuild SERVICE: rebuild and restart a single service
+# ---------------------------------------------------------------------------
+REBUILD_SVC=""
+if [[ "${1:-}" == "--rebuild" ]]; then
+    REBUILD_SVC="${2:-}"
+fi
+
+if [[ -n "$REBUILD_SVC" ]]; then
+    if [[ -z "${SVC_DOCKERFILE[$REBUILD_SVC]:-}" ]]; then
+        fail "Unknown service '$REBUILD_SVC'. Valid: leaky-api-python, thread-leaky-api-python, gc-pressure-api-python, native-leaky-api-python, loadgen"
+    fi
+    step "Rebuilding and restarting: $REBUILD_SVC"
+    # Cluster must exist
+    if ! kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
+        fail "No cluster found. Run without --rebuild first to create one."
+    fi
+    kubectl cluster-info --context "kind-${CLUSTER_NAME}" >/dev/null 2>&1 \
+        || fail "Cannot connect to kind cluster"
+    # Build
+    DOCKERFILE="${SVC_DOCKERFILE[$REBUILD_SVC]}"
+    BUILD_CTX="${SVC_BUILD_CTX[$REBUILD_SVC]}"
+    IMAGE="${SVC_IMAGE[$REBUILD_SVC]}"
+    docker build -t "$IMAGE" -f "$DOCKERFILE" "$BUILD_CTX" 2>&1 | tail -5
+    info "Built $IMAGE"
+    # Load into Kind
+    kind load docker-image "$IMAGE" --name "$CLUSTER_NAME" 2>&1 | tail -1
+    info "Loaded $IMAGE into Kind"
+    # Apply manifest
+    MANIFEST="${SVC_MANIFEST[$REBUILD_SVC]}"
+    kubectl apply -f "$MANIFEST"
+    info "Applied $MANIFEST"
+    # Restart deployment(s)
+    case "$REBUILD_SVC" in
+        leaky-api-python)
+            kubectl rollout restart deployment/leaky-api-python -n "$NAMESPACE"
+            kubectl rollout status deployment/leaky-api-python -n "$NAMESPACE" --timeout=120s
+            ;;
+        thread-leaky-api-python)
+            kubectl rollout restart deployment/thread-leaky-api-python -n "$NAMESPACE"
+            kubectl rollout status deployment/thread-leaky-api-python -n "$NAMESPACE" --timeout=120s
+            ;;
+        gc-pressure-api-python)
+            kubectl rollout restart deployment/gc-pressure-api-python -n "$NAMESPACE"
+            kubectl rollout status deployment/gc-pressure-api-python -n "$NAMESPACE" --timeout=120s
+            ;;
+        native-leaky-api-python)
+            kubectl rollout restart deployment/native-leaky-api-python -n "$NAMESPACE"
+            kubectl rollout status deployment/native-leaky-api-python -n "$NAMESPACE" --timeout=120s
+            ;;
+        loadgen)
+            for dep in loadgen-leak-python loadgen-thread-leak-python loadgen-gc-pressure-python loadgen-native-leak-python; do
+                kubectl rollout restart deployment/"$dep" -n "$NAMESPACE"
+            done
+            kubectl rollout status deployment/loadgen-leak-python -n "$NAMESPACE" --timeout=60s
+            ;;
+    esac
+    info "Restarted $REBUILD_SVC"
+    echo ""
+    kubectl get pods -n "$NAMESPACE" -o wide
     exit 0
 fi
 
@@ -250,7 +347,8 @@ echo "    localStorage.setItem('set_config_profiling-memory-leaks-tab-generic-or
 echo ""
 echo "  Useful commands:"
 echo "    Status:   $0 --status"
-echo "    Rebuild:  $0 --rebuild"
+echo "    Rebuild:  $0 --rebuild                    # all services"
+echo "    Rebuild:  $0 --rebuild leaky-api-python   # single service"
 echo "    Logs:     kubectl logs -n $NAMESPACE $LEAKY_POD -f"
 echo "    Agent:    kubectl exec -n $NAMESPACE \$(kubectl get pods -n $NAMESPACE -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}') -- agent status"
 echo "    Tear down: $0 --stop"
