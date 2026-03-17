@@ -3,8 +3,8 @@ Port of LeakyServer.java.
 
 Key characteristics (intentional for profiling demo):
 - REQUEST_METRICS is an unbounded list (never cleared)
-- Each Metrics object holds 1MB of metadata string
-- This produces a memory leak observable in the Datadog heap profiler
+- Each Metrics object holds a large metadata string (256 KiB) in Python heap
+- This produces a memory leak observable in Datadog Python Live Heap and profiler
 - credits_for_movie() does a linear O(n) scan (no pre-computed map)
 - parse_role uses try/except
 """
@@ -33,11 +33,16 @@ MOVIES_API_PORT = int(os.environ.get("MOVIES_API_PORT", "8082"))
 app = Flask(__name__)
 
 
-class Metrics:
-    """Intentional memory leak using many small Python objects.
+# Bytes of Python heap to leak per request. Pure Python strings show up in
+# Python Live Heap (heap-live-size). 256 KiB × 10 req/s ≈ 2.5 MiB/s growth.
+_LEAK_BYTES_PER_REQUEST = 256 * 1024
 
-    Uses dicts/lists/strings that allocate through pymalloc so the leak is
-    visible to dd-trace-py's heap profiler (@prof_python_lifetime_heap_bytes).
+
+class Metrics:
+    """Intentional memory leak using Python heap objects.
+
+    Uses a large string (and dicts/lists) that allocate through pymalloc so
+    the leak is visible in Datadog's Python Live Heap metric and heap profiler.
     """
 
     def __init__(self, req):
@@ -46,6 +51,8 @@ class Metrics:
         self.req_args = str(req.args)
         self.req_headers = str(dict(req.headers))
         self.date = datetime.utcnow()
+        # Large string: pure Python heap, drives steep slope in Python Live Heap
+        self.metadata = "x" * _LEAK_BYTES_PER_REQUEST
         self.data = [
             {"key": f"val_{i}", "nested": list(range(100))}
             for i in range(50)
