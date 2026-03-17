@@ -95,5 +95,5 @@ Replace `9081` with `9082`, `9083`, or `9085` to hit the other services.
 
 - **intro** (`9085`) — baseline: O(n) credits lookup, bounded metrics dict
 - **movies** (`9081`) — optimised: O(1) credits lookup via pre-computed dict
-- **leaky** (`9082`) — intentional memory leak: every request appends a `Metrics` object containing 256 KiB to an unbounded list, visible in the Datadog heap profiler (OOM ~13 min at 2 Gi limit)
+- **leaky** (`9082`) — intentional memory leak: every request appends a `Metrics` object containing 256 KiB to an unbounded list, visible in the Datadog heap profiler (OOM ~15 min at 2 Gi limit)
 - **timeline** (`9083`) — same as movies, but `parse_role` uses a dict lookup instead of try/except — the incremental optimisation the timeline view highlights

@@ -14,8 +14,9 @@ function load-gen-target-generator() {
 function load-gen-leak-python() {
   pkill -f vegeta &> /dev/null || true
 
+  # ~9 req/s → ~15 min OOM at 2 Gi (256 KiB/req)
   load-gen-target-generator \
-    | vegeta attack -lazy -format=json -rate=10 -duration=0 -max-workers=4 \
+    | vegeta attack -lazy -format=json -rate=9 -duration=0 -max-workers=4 \
     &> /dev/null &
 
   THREAD_LEAK_URL="${TARGET_URL%/*}/spawn-thread"
@@ -23,7 +24,7 @@ function load-gen-leak-python() {
     | vegeta attack -rate=6/m -duration=0 -max-workers=1 \
     &> /dev/null &
 
-  echo "🕹  Vegeta leak-test running against ${TARGET_URL} (10 req/s) + thread leak (6/min)"
+  echo "🕹  Vegeta leak-test running against ${TARGET_URL} (9 req/s) + thread leak (6/min)"
   tail -f /dev/null
 }
 
@@ -75,13 +76,16 @@ elif [ "$LOAD_GEN_MODE" -eq 4 ]; then
   load-gen-intro-python
 elif [ "$LOAD_GEN_MODE" -eq 5 ]; then
   echo "Mode 5: running thread-leak load gen (Python)"
-  load-gen-simple "${TARGET_URL}" "thread-leak" 2
+  # ~0.15 req/s → ~15 min OOM at 256 Mi (thread stack ~2 MB)
+  load-gen-simple "${TARGET_URL}" "thread-leak" 0.15
 elif [ "$LOAD_GEN_MODE" -eq 6 ]; then
   echo "Mode 6: running gc-pressure load gen (Python)"
-  load-gen-simple "${TARGET_URL}" "gc-pressure" 2
+  # ~3.5 req/s → ~15 min OOM at 256 Mi (~80 KB/req)
+  load-gen-simple "${TARGET_URL}" "gc-pressure" 3.5
 elif [ "$LOAD_GEN_MODE" -eq 7 ]; then
   echo "Mode 7: running native-leak load gen (Python)"
-  load-gen-simple "${TARGET_URL}" "native-leak" 2
+  # ~2.2 req/s → ~15 min OOM at 512 Mi (256 KiB/req)
+  load-gen-simple "${TARGET_URL}" "native-leak" 2.2
 else
   echo "Unknown LOAD_GEN_MODE: $LOAD_GEN_MODE (expected 1-7)"
 fi
