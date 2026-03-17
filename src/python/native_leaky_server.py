@@ -5,7 +5,6 @@ Each request allocates memory via ctypes malloc() without ever freeing it.
 RSS grows but Python heap (heap-live-size) stays flat, exercising
 the RSS >> heap branch leading to PythonNativeLeakStep.
 """
-import gc
 import ctypes
 import ctypes.util
 import logging
@@ -31,7 +30,7 @@ ALLOC_SIZE = 1024 * 1024  # 1 MiB per request
 
 @app.route("/")
 def index():
-    gc.collect()  # Minimize Python heap so RSS >> heap gap is pronounced
+    # No gc.collect() - would increment gen2 count and wrongly trigger GC workflow
     ptr = libc.malloc(ALLOC_SIZE)
     if ptr:
         NATIVE_ALLOCS.append(ptr)
