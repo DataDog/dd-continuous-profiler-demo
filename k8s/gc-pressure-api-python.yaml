@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gc-pressure-api-python
+  namespace: profiling-demo
+spec:
+  selector:
+    app: gc-pressure-api-python
+  ports:
+    - port: 9087
+      targetPort: 9087
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gc-pressure-api-python
+  namespace: profiling-demo
+  labels:
+    tags.datadoghq.com/env: prod
+    tags.datadoghq.com/service: gc-pressure-api-python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gc-pressure-api-python
+  template:
+    metadata:
+      labels:
+        app: gc-pressure-api-python
+        tags.datadoghq.com/env: prod
+        tags.datadoghq.com/service: gc-pressure-api-python
+      annotations:
+        ad.datadoghq.com/gc-pressure-api-python.logs: '[{"source":"python","service":"gc-pressure-api-python"}]'
+    spec:
+      containers:
+        - name: gc-pressure-api-python
+          image: gc-pressure-api-python:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9087
+          env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_RUNTIME_METRICS_ENABLED
+              value: "true"
+            - name: DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED
+              value: "true"
+            - name: DD_PROFILING_ENABLED
+              value: "true"
+            - name: DD_PROFILING_UPLOAD_PERIOD
+              value: "10"
+            - name: DD_ENV
+              value: "prod"
+            - name: DD_SERVICE
+              value: "gc-pressure-api-python"
+            - name: DD_TAGS
+              value: "env:prod"
+            - name: DD_ENTITY_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: MOVIES_API_PORT
+              value: "9087"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9087
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9087
+            initialDelaySeconds: 10
+            periodSeconds: 30

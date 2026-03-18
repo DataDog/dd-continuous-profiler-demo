@@ -1,0 +1,3 @@
+flask==3.1.0
+pymongo==4.10.1
+ddtrace==4.5.2

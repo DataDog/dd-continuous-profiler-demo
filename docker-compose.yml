@@ -3,9 +3,9 @@ services:
   movies-api-mongo:
     image: mongo:5
     volumes:
-    - ./mongo-seed:/docker-entrypoint-initdb.d
+      - ./mongo-seed:/docker-entrypoint-initdb.d
     ports:
-    - 27017:27017
+      - 27017:27017
 
   datadog-agent:
     image: datadog/agent:latest
@@ -13,15 +13,20 @@ services:
       DD_API_KEY: ${DD_API_KEY}
       DD_REMOTE_CONFIGURATION_ENABLED: 'true'
       DD_APM_ENABLED: 'true'
-      DD_SITE: 'datadoghq.com'
+      DD_SITE: 'datad0g.com'
       DD_APM_NON_LOCAL_TRAFFIC: 'true'
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: 'true'
+      DD_DOGSTATSD_ORIGIN_DETECTION: 'true'
+      DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED: 'true'
+      DD_HOSTNAME: 'docker-desktop'
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /proc/:/host/proc/:ro
       - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
     expose:
+      - "8125"
       - "8126"
+    restart: always
 
   intro-movies-api-java:
     build:
@@ -36,7 +41,7 @@ services:
       MONGO_URI: mongodb://movies-api-mongo:27017
       MOVIES_API_PORT: 8085
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8085/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8085/" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -58,7 +63,7 @@ services:
       MONGO_URI: mongodb://movies-api-mongo:27017
       MOVIES_API_PORT: 8081
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -80,7 +85,7 @@ services:
       MONGO_URI: mongodb://movies-api-mongo:27017
       MOVIES_API_PORT: 8082
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8082/" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -102,7 +107,7 @@ services:
       MONGO_URI: mongodb://movies-api-mongo:27017
       MOVIES_API_PORT: 8083
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8083/" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -117,9 +122,9 @@ services:
     depends_on:
       - leaky-api-java
     environment:
-    # if you want to override the target URL:
-     - TARGET_URL=http://leaky-api-java:8082/movies
-     - LOAD_GEN_MODE=1
+      # if you want to override the target URL:
+      - TARGET_URL=http://leaky-api-java:8082/movies
+      - LOAD_GEN_MODE=1
 
   loadgen-movies-api:
     build:
@@ -142,5 +147,141 @@ services:
       context: ./vegeta
     depends_on:
       - intro-movies-api-java
+    environment:
+      - LOAD_GEN_MODE=4
+
+  # --- Python services ---
+
+  intro-movies-api-python:
+    build:
+      context: .
+      dockerfile: Dockerfile.intro-python
+    ports:
+      - 9085:9085
+    environment:
+      DD_AGENT_HOST: "datadog-agent"
+      DD_RUNTIME_METRICS_ENABLED: "true"
+      DD_PROFILING_ENABLED: "true"
+      DD_PROFILING_UPLOAD_PERIOD: "10"
+      DD_TAGS: ${DD_TAGS}
+      MONGO_URI: mongodb://movies-api-mongo:27017
+      MOVIES_API_PORT: 9085
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9085/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - datadog-agent
+      - movies-api-mongo
+    restart: always
+
+  movies-api-python:
+    build:
+      context: .
+      dockerfile: Dockerfile.movies-python
+    ports:
+      - 9081:9081
+    environment:
+      DD_AGENT_HOST: "datadog-agent"
+      DD_RUNTIME_METRICS_ENABLED: "true"
+      DD_PROFILING_ENABLED: "true"
+      DD_PROFILING_UPLOAD_PERIOD: "10"
+      DD_TAGS: ${DD_TAGS}
+      MONGO_URI: mongodb://movies-api-mongo:27017
+      MOVIES_API_PORT: 9081
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9081/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - datadog-agent
+      - movies-api-mongo
+    restart: always
+
+  leaky-api-python:
+    build:
+      context: .
+      dockerfile: Dockerfile.leaky-python
+    ports:
+      - 9082:9082
+    environment:
+      DD_AGENT_HOST: "datadog-agent"
+      DD_RUNTIME_METRICS_ENABLED: "true"
+      DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED: "true"
+      DD_PROFILING_ENABLED: "true"
+      DD_PROFILING_UPLOAD_PERIOD: "10"
+      DD_TAGS: ${DD_TAGS}
+      MONGO_URI: mongodb://movies-api-mongo:27017
+      MOVIES_API_PORT: 9082
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9082/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - datadog-agent
+      - movies-api-mongo
+    restart: always
+
+  movies-api-python-timeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.timeline-python
+    ports:
+      - 9083:9083
+    environment:
+      DD_AGENT_HOST: "datadog-agent"
+      DD_RUNTIME_METRICS_ENABLED: "true"
+      DD_PROFILING_ENABLED: "true"
+      DD_PROFILING_UPLOAD_PERIOD: "10"
+      DD_TAGS: ${DD_TAGS}
+      MONGO_URI: mongodb://movies-api-mongo:27017
+      MOVIES_API_PORT: 9083
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9083/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - datadog-agent
+      - movies-api-mongo
+    restart: always
+
+  loadgen-leak-python:
+    build:
+      context: ./vegeta
+      dockerfile: Dockerfile.python
+    depends_on:
+      - leaky-api-python
+    environment:
+      - TARGET_URL=http://leaky-api-python:9082/movies
+      - LOAD_GEN_MODE=1
+
+  loadgen-movies-api-python:
+    build:
+      context: ./vegeta
+      dockerfile: Dockerfile.python
+    depends_on:
+      - movies-api-python
+    environment:
+      - LOAD_GEN_MODE=2
+
+  loadgen-timeline-python:
+    build:
+      context: ./vegeta
+      dockerfile: Dockerfile.python
+    depends_on:
+      - movies-api-python-timeline
+    environment:
+      - LOAD_GEN_MODE=3
+
+  loadgen-movies-api-intro-python:
+    build:
+      context: ./vegeta
+      dockerfile: Dockerfile.python
+    depends_on:
+      - intro-movies-api-python
     environment:
       - LOAD_GEN_MODE=4

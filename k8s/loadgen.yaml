@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen-leak-python
+  namespace: profiling-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen-leak-python
+  template:
+    metadata:
+      labels:
+        app: loadgen-leak-python
+    spec:
+      containers:
+        - name: loadgen
+          image: loadgen-python:latest
+          imagePullPolicy: Never
+          env:
+            - name: TARGET_URL
+              value: "http://leaky-api-python.profiling-demo.svc:9082/movies"
+            - name: LOAD_GEN_MODE
+              value: "1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen-thread-leak-python
+  namespace: profiling-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen-thread-leak-python
+  template:
+    metadata:
+      labels:
+        app: loadgen-thread-leak-python
+    spec:
+      containers:
+        - name: loadgen
+          image: loadgen-python:latest
+          imagePullPolicy: Never
+          env:
+            - name: TARGET_URL
+              value: "http://thread-leaky-api-python.profiling-demo.svc:9086/"
+            - name: LOAD_GEN_MODE
+              value: "5"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen-gc-pressure-python
+  namespace: profiling-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen-gc-pressure-python
+  template:
+    metadata:
+      labels:
+        app: loadgen-gc-pressure-python
+    spec:
+      containers:
+        - name: loadgen
+          image: loadgen-python:latest
+          imagePullPolicy: Never
+          env:
+            - name: TARGET_URL
+              value: "http://gc-pressure-api-python.profiling-demo.svc:9087/"
+            - name: LOAD_GEN_MODE
+              value: "6"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen-native-leak-python
+  namespace: profiling-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen-native-leak-python
+  template:
+    metadata:
+      labels:
+        app: loadgen-native-leak-python
+    spec:
+      containers:
+        - name: loadgen
+          image: loadgen-python:latest
+          imagePullPolicy: Never
+          env:
+            - name: TARGET_URL
+              value: "http://native-leaky-api-python.profiling-demo.svc:9088/"
+            - name: LOAD_GEN_MODE
+              value: "7"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi

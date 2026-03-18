@@ -1,0 +1,19 @@
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ENV DD_SERVICE="gc-pressure-api-python"
+ENV DD_ENV="prod"
+LABEL com.datadoghq.tags.service="gc-pressure-api-python"
+LABEL com.datadoghq.tags.env="prod"
+
+COPY src/python/requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/python/gc_pressure_server.py /app/
+
+EXPOSE 9087
+
+CMD ["ddtrace-run", "python", "gc_pressure_server.py"]
