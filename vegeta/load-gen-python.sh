@@ -14,13 +14,13 @@ function load-gen-target-generator() {
 function load-gen-leak-python() {
   pkill -f vegeta &> /dev/null || true
 
-  # ~2.3 req/s → ~15 min OOM at 512 Mi (256 KiB/req)
+  # 2 req/s → ~17 min OOM at 512 Mi (256 KiB/req)
   # Only /movies (heap leak); no /spawn-thread so Step 2 stays "No" and flow goes to Live Heap
   load-gen-target-generator \
-    | vegeta attack -lazy -format=json -rate=2.3 -duration=0 -max-workers=4 \
+    | vegeta attack -lazy -format=json -rate=2 -duration=0 -max-workers=4 \
     &> /dev/null &
 
-  echo "🕹  Vegeta leak-test running against ${TARGET_URL} (2.3 req/s)"
+  echo "🕹  Vegeta leak-test running against ${TARGET_URL} (2 req/s)"
   tail -f /dev/null
 }
 
@@ -72,16 +72,16 @@ elif [ "$LOAD_GEN_MODE" -eq 4 ]; then
   load-gen-intro-python
 elif [ "$LOAD_GEN_MODE" -eq 5 ]; then
   echo "Mode 5: running thread-leak load gen (Python)"
-  # ~0.5 req/s → steep thread growth for Step 2; OOM ~8 min at 512 Mi (thread stack ~2 MB)
-  load-gen-simple "${TARGET_URL}" "thread-leak" 0.5
+  # 2 req/s = 120 threads/min; 2 Gi limit for ~17 min OOM (integer rate ensures vegeta works)
+  load-gen-simple "${TARGET_URL}" "thread-leak" 2
 elif [ "$LOAD_GEN_MODE" -eq 6 ]; then
   echo "Mode 6: running gc-pressure load gen (Python)"
-  # ~5 req/s → 500 gen2 collections/sec; ~7 min OOM at 512 Mi (~250 KB/req)
+  # 5 req/s, 100× gc.collect(2)/req → 500 gen2/sec; 2 Gi limit for ~30 min OOM
   load-gen-simple "${TARGET_URL}" "gc-pressure" 5
 elif [ "$LOAD_GEN_MODE" -eq 7 ]; then
   echo "Mode 7: running native-leak load gen (Python)"
-  # ~0.6 req/s → ~15 min OOM at 512 Mi (1 MiB/req)
-  load-gen-simple "${TARGET_URL}" "native-leak" 0.6
+  # 1 req/s → steady RSS growth; 2 Gi limit for ~32 min OOM (1 MiB/req)
+  load-gen-simple "${TARGET_URL}" "native-leak" 1
 else
   echo "Unknown LOAD_GEN_MODE: $LOAD_GEN_MODE (expected 1-7)"
 fi
