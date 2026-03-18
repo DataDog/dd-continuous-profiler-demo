@@ -76,7 +76,7 @@ elif [ "$LOAD_GEN_MODE" -eq 5 ]; then
   load-gen-simple "${TARGET_URL}" "thread-leak" 2
 elif [ "$LOAD_GEN_MODE" -eq 6 ]; then
   echo "Mode 6: running gc-pressure load gen (Python)"
-  # 5 req/s, 100× gc.collect(2)/req → 500 gen2/sec; 2 Gi limit for ~30 min OOM
+  # 5 req/s, 500× gc.collect(2)/req → 2500 gen2/sec; no survivor pool = no OOM
   load-gen-simple "${TARGET_URL}" "gc-pressure" 5
 elif [ "$LOAD_GEN_MODE" -eq 7 ]; then
   echo "Mode 7: running native-leak load gen (Python)"

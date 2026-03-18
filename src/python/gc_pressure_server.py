@@ -1,9 +1,9 @@
 """
 GC-pressure Flask server for profiling demo.
 
-Each request creates objects with circular references stored in a global list.
-Objects survive to gen2 garbage collection, causing
-runtime.python.gc.count.gen2 to grow steadily.
+Each request forces many gen2 collections via gc.collect(2).
+runtime.python.gc.count.gen2 grows steadily. No survivor pool growth so
+the pod does not OOM and reset the cumulative counter.
 """
 import gc
 import logging
@@ -17,48 +17,24 @@ LOG = logging.getLogger(__name__)
 app = Flask(__name__)
 PORT = int(os.environ.get("MOVIES_API_PORT", "9087"))
 
-SURVIVOR_POOL: list = []
-
-
-class CyclicNode:
-    """Object with a circular reference that forces GC collection."""
-
-    __slots__ = ("peer", "payload")
-
-    def __init__(self):
-        self.peer = None
-        # ~2.5 KB payload; 50 groups × 2 nodes × 2.5 KB ≈ 250 KB/req
-        self.payload = list(range(100))
-
-
-def create_cyclic_group():
-    """Create a pair of objects that reference each other."""
-    a = CyclicNode()
-    b = CyclicNode()
-    a.peer = b
-    b.peer = a
-    return a
-
 
 @app.route("/")
 def index():
-    for _ in range(50):
-        SURVIVOR_POOL.append(create_cyclic_group())
-    # Force many gen2 collections so runtime.python.gc.count.gen2 grows steeply
-    # 100×/req ensures clear slope for Datadog's growth threshold
-    for _ in range(100):
+    # Force many gen2 collections so runtime.python.gc.count.gen2 grows steeply.
+    # No survivor pool growth — OOM resets the counter and breaks the trend.
+    # 500×/req at 5 req/s = 2500 gen2/sec; memory stays flat.
+    for _ in range(500):
         gc.collect(2)
     gen2 = gc.get_stats()[2]["collections"]
     return jsonify({
         "status": "gc pressure applied",
-        "survivor_count": len(SURVIVOR_POOL),
         "gen2_collections": gen2,
     })
 
 
 @app.route("/health")
 def health():
-    return jsonify({"ok": True, "survivors": len(SURVIVOR_POOL)})
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
