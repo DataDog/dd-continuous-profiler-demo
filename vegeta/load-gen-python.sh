@@ -47,10 +47,18 @@ function load-gen-simple() {
   local label="$2"
   local rate="${3:-2}"
   pkill -f vegeta &> /dev/null || true
+  # Sleep ~1/rate so the generator supplies enough targets (was fixed 0.5s → capped at 2 req/s)
+  local sleep_sec
+  sleep_sec=$(awk -v r="$rate" 'BEGIN {
+    if (r < 1) r = 1
+    s = 1 / r
+    if (s < 0.05) s = 0.05
+    printf "%.4f", s
+  }')
 
   while true; do
     echo "{\"method\": \"GET\", \"url\": \"${url}\"}"
-    sleep 0.5
+    sleep "$sleep_sec"
   done | vegeta attack -lazy -format=json -rate="${rate}" -duration=0 -max-workers=2 \
     &> /dev/null &
 

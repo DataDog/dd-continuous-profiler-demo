@@ -8,6 +8,7 @@
 #   ./start-python-k8s-demo.sh --rebuild           # rebuild all images + rollout restart (cluster stays)
 #   ./start-python-k8s-demo.sh --rebuild SERVICE   # rebuild + restart only SERVICE (e.g. leaky-api-python)
 #   ./start-python-k8s-demo.sh --status            # show pod status
+#   ./start-python-k8s-demo.sh --verify            # curl each leaky service; confirm counters over ~30s
 #
 # Services: leaky-api-python, thread-leaky-api-python, gc-pressure-api-python, native-leaky-api-python, loadgen
 #
@@ -81,6 +82,74 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${1:-}" == "--status" ]]; then
     kubectl get pods -n "$NAMESPACE" -o wide 2>/dev/null || echo "Cluster not found or namespace missing"
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# --verify: confirm leaky behavior via in-cluster curls (30s apart)
+# ---------------------------------------------------------------------------
+if [[ "${1:-}" == "--verify" ]]; then
+    if ! kubectl get ns "$NAMESPACE" &>/dev/null; then
+        fail "Namespace $NAMESPACE not found. Start the demo first."
+    fi
+    _json_field() {
+        python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('$2',''))" <<<"$1" 2>/dev/null || echo ""
+    }
+    step "Verify leaky services (t0 now, t1 after 30s; loadgen must be running)"
+    echo ""
+    # t0
+    leaky_t0=$(kubectl exec -n "$NAMESPACE" deploy/leaky-api-python -- curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:9082/movies" 2>/dev/null || echo "ERR")
+    thread_t0=$(kubectl exec -n "$NAMESPACE" deploy/thread-leaky-api-python -- curl -s "http://127.0.0.1:9086/health" 2>/dev/null || echo "{}")
+    gc_t0=$(kubectl exec -n "$NAMESPACE" deploy/gc-pressure-api-python -- curl -s "http://127.0.0.1:9087/" 2>/dev/null || echo "{}")
+    native_t0=$(kubectl exec -n "$NAMESPACE" deploy/native-leaky-api-python -- curl -s "http://127.0.0.1:9088/" 2>/dev/null || echo "{}")
+
+    th0=$(_json_field "$thread_t0" threads)
+    g20=$(_json_field "$gc_t0" gen2_collections)
+    na0=$(_json_field "$native_t0" alloc_count)
+    nh0=$(_json_field "$native_t0" heap_chunks)
+
+    info "t0: leaky /movies HTTP=$leaky_t0 | threads=$th0 | gen2=$g20 | native alloc=$na0 heap_chunks=$nh0"
+    echo "    Waiting 30s for loadgen to drive requests..."
+    sleep 30
+
+    leaky_t1=$(kubectl exec -n "$NAMESPACE" deploy/leaky-api-python -- curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:9082/movies" 2>/dev/null || echo "ERR")
+    thread_t1=$(kubectl exec -n "$NAMESPACE" deploy/thread-leaky-api-python -- curl -s "http://127.0.0.1:9086/health" 2>/dev/null || echo "{}")
+    gc_t1=$(kubectl exec -n "$NAMESPACE" deploy/gc-pressure-api-python -- curl -s "http://127.0.0.1:9087/" 2>/dev/null || echo "{}")
+    native_t1=$(kubectl exec -n "$NAMESPACE" deploy/native-leaky-api-python -- curl -s "http://127.0.0.1:9088/" 2>/dev/null || echo "{}")
+
+    th1=$(_json_field "$thread_t1" threads)
+    g21=$(_json_field "$gc_t1" gen2_collections)
+    na1=$(_json_field "$native_t1" alloc_count)
+    nh1=$(_json_field "$native_t1" heap_chunks)
+
+    info "t1: leaky /movies HTTP=$leaky_t1 | threads=$th1 | gen2=$g21 | native alloc=$na1 heap_chunks=$nh1"
+    echo ""
+    ok=0
+    [[ "$leaky_t0" == "200" && "$leaky_t1" == "200" ]] && { info "leaky-api-python: OK (HTTP 200; heap growth → Datadog Live Heap)"; ok=$((ok+1)); } || warn "leaky-api-python: expected HTTP 200"
+    if [[ -n "$th0" && -n "$th1" ]] && awk -v a="$th0" -v b="$th1" 'BEGIN{exit (b>a)?0:1}' 2>/dev/null; then
+        info "thread-leaky-api-python: OK (threads $th0 → $th1)"
+        ok=$((ok+1))
+    else
+        warn "thread-leaky-api-python: threads did not increase ($th0 → $th1)"
+    fi
+    if [[ -n "$g20" && -n "$g21" ]] && awk -v a="$g20" -v b="$g21" 'BEGIN{exit (b>a)?0:1}' 2>/dev/null; then
+        info "gc-pressure-api-python: OK (gen2_collections $g20 → $g21)"
+        ok=$((ok+1))
+    else
+        warn "gc-pressure-api-python: gen2_collections did not increase ($g20 → $g21)"
+    fi
+    if [[ -n "$na0" && -n "$na1" ]] && awk -v a="$na0" -v b="$na1" 'BEGIN{exit (b>a)?0:1}' 2>/dev/null; then
+        info "native-leaky-api-python: OK (alloc_count $na0 → $na1, heap_chunks $nh0 → $nh1)"
+        ok=$((ok+1))
+    else
+        warn "native-leaky-api-python: alloc_count did not increase ($na0 → $na1)"
+    fi
+    echo ""
+    if [[ "$ok" -eq 4 ]]; then
+        info "All 4 checks passed."
+    else
+        warn "Passed $ok/4. Ensure loadgen pods are Running and rebuild loadgen if you changed load-gen-python.sh."
+    fi
     exit 0
 fi
 
@@ -343,6 +412,13 @@ echo "    - Use a time range that starts after the last pod restart (avoids coun
 echo "    - 'Past 15 min' or 'Past 1 hour' usually works; avoid ranges spanning OOM"
 echo "    - DD_RUNTIME_METRICS_ENABLED=true is set (required for gc.count.gen2)"
 echo ""
+echo "  Inspection (Memory Leaks workflow):"
+echo "    Service                 Min wait   Time range      Notes"
+echo "    leaky-api-python        5 min      Past 15 min     Avoid span across OOM (~17 min)"
+echo "    thread-leaky-api-python 5 min      Past 15 min     Thread count slope"
+echo "    gc-pressure-api-python  5 min      Past 10-15 min  Gen2 cumulative; no restart in range"
+echo "    native-leaky-api-python 5 min      Past 10-15 min  RSS vs heap; avoid span across OOM (~34 min)"
+echo ""
 echo "  Links (switch to profiling-public-symbols org after opening):"
 echo "    Staging:  https://app.datad0g.com/apm/entity/service%3Aleaky-api-python?env=prod"
 echo "    Local:    https://app-dev-local.datad0g.com/apm/entity/service%3Aleaky-api-python?env=prod#profiling"
@@ -352,6 +428,7 @@ echo "    localStorage.setItem('set_config_profiling-memory-leaks-tab-for-python
 echo ""
 echo "  Useful commands:"
 echo "    Status:   $0 --status"
+echo "    Verify:   $0 --verify                     # leaky counters over 30s (needs loadgen)"
 echo "    Rebuild:  $0 --rebuild                    # all services"
 echo "    Rebuild:  $0 --rebuild leaky-api-python   # single service"
 echo "    Logs:     kubectl logs -n $NAMESPACE $LEAKY_POD -f"
