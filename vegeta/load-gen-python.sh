@@ -80,7 +80,7 @@ elif [ "$LOAD_GEN_MODE" -eq 6 ]; then
   load-gen-simple "${TARGET_URL}" "gc-pressure" 5
 elif [ "$LOAD_GEN_MODE" -eq 7 ]; then
   echo "Mode 7: running native-leak load gen (Python)"
-  # 1 req/s → steady RSS growth; 2 Gi limit for ~32 min OOM (1 MiB/req)
+  # 1 req/s × 2 MiB/req = 2 MiB/s; 4 Gi limit for ~34 min OOM
   load-gen-simple "${TARGET_URL}" "native-leak" 1
 else
   echo "Unknown LOAD_GEN_MODE: $LOAD_GEN_MODE (expected 1-7)"

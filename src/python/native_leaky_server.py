@@ -24,8 +24,8 @@ libc.malloc.restype = ctypes.c_void_p
 libc.malloc.argtypes = [ctypes.c_size_t]
 
 NATIVE_ALLOCS: list = []
-# 1 MiB per request → steep RSS growth, flat Python heap → clear RSS >> heap for auto-select
-ALLOC_SIZE = 1024 * 1024  # 1 MiB per request
+# 2 MiB per request → steep RSS growth, flat Python heap → clear RSS >> heap for auto-select
+ALLOC_SIZE = 2 * 1024 * 1024  # 2 MiB per request
 
 
 @app.route("/")
