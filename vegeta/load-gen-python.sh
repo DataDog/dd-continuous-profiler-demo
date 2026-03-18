@@ -76,8 +76,8 @@ elif [ "$LOAD_GEN_MODE" -eq 5 ]; then
   load-gen-simple "${TARGET_URL}" "thread-leak" 0.5
 elif [ "$LOAD_GEN_MODE" -eq 6 ]; then
   echo "Mode 6: running gc-pressure load gen (Python)"
-  # ~2.3 req/s → ~15 min OOM at 512 Mi (~250 KB/req); 20× gc.collect(2)/req for steep gen2 growth
-  load-gen-simple "${TARGET_URL}" "gc-pressure" 2.3
+  # ~5 req/s → 500 gen2 collections/sec; ~7 min OOM at 512 Mi (~250 KB/req)
+  load-gen-simple "${TARGET_URL}" "gc-pressure" 5
 elif [ "$LOAD_GEN_MODE" -eq 7 ]; then
   echo "Mode 7: running native-leak load gen (Python)"
   # ~0.6 req/s → ~15 min OOM at 512 Mi (1 MiB/req)

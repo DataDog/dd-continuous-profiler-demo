@@ -45,7 +45,8 @@ def index():
     for _ in range(50):
         SURVIVOR_POOL.append(create_cyclic_group())
     # Force many gen2 collections so runtime.python.gc.count.gen2 grows steeply
-    for _ in range(20):
+    # 100×/req ensures clear slope for Datadog's growth threshold
+    for _ in range(100):
         gc.collect(2)
     gen2 = gc.get_stats()[2]["collections"]
     return jsonify({
