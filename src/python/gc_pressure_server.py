@@ -42,5 +42,10 @@ if __name__ == "__main__":
         "gc-pressure-api-python starting on port %d (pid %d)",
         PORT, os.getpid(),
     )
+    # Raise the gen2 threshold so automatic gen2 collections never fire.
+    # gc.collect(1) in the handler increments gc.get_count()[2]; without this,
+    # the counter resets to 0 every 10 gen1 collections (default threshold).
+    # With a huge threshold it grows monotonically: 50/s × 900s = 45 000 in 15 min.
+    gc.set_threshold(700, 10, 10_000_000)
     # threaded=False keeps thread count flat so Step 2 (thread leak) doesn't trigger
     app.run(host="0.0.0.0", port=PORT, threaded=False)
