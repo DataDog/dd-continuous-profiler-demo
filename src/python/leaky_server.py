@@ -34,8 +34,9 @@ app = Flask(__name__)
 
 
 # Bytes of Python heap to leak per request. Pure Python strings show up in
-# Python Live Heap (heap-live-size). 256 KiB × 2.3 req/s ≈ 0.57 MiB/s → ~15 min at 512 Mi.
-_LEAK_BYTES_PER_REQUEST = 256 * 1024
+# Python Live Heap (heap-live-size). 16 KiB × 2 req/s = 32 KiB/s → ~5h OOM cycle at 512 Mi,
+# giving reliable detection in any 15-min window (28 MiB growth per window >> 8% threshold).
+_LEAK_BYTES_PER_REQUEST = 16 * 1024
 
 
 class Metrics:
