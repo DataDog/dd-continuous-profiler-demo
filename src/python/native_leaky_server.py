@@ -29,6 +29,7 @@ libc.memset.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t]
 NATIVE_ALLOCS: list = []
 # 2 MiB native per request; RSS grows ~2 MiB/s, Python Live Heap stays flat
 ALLOC_SIZE = 2 * 1024 * 1024  # 2 MiB per request
+LEAK_ENABLED = os.environ.get("LEAK_ENABLED", "1") == "1"
 
 
 @app.route("/")
@@ -37,10 +38,11 @@ def index():
     # stays flat — prevents the startup artifact (count grows 0→10 before first
     # auto gen2 trigger) from falsely routing to the GC pressure step.
     gc.collect(2)
-    ptr = libc.malloc(ALLOC_SIZE)
-    if ptr:
-        libc.memset(ptr, 0, ALLOC_SIZE)  # touch pages so RSS grows (malloc is lazy)
-        NATIVE_ALLOCS.append(ptr)
+    if LEAK_ENABLED:
+        ptr = libc.malloc(ALLOC_SIZE)
+        if ptr:
+            libc.memset(ptr, 0, ALLOC_SIZE)  # touch pages so RSS grows (malloc is lazy)
+            NATIVE_ALLOCS.append(ptr)
     return jsonify({
         "status": "native memory allocated",
         "alloc_count": len(NATIVE_ALLOCS),

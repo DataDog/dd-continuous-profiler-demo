@@ -29,6 +29,7 @@ logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
 
 MOVIES_API_PORT = int(os.environ.get("MOVIES_API_PORT", "8082"))
+LEAK_ENABLED = os.environ.get("LEAK_ENABLED", "1") == "1"
 
 app = Flask(__name__)
 
@@ -82,8 +83,9 @@ def _ensure_cache():
 
 def collect_metrics(req) -> None:
     """Synchronized append - mirrors Java synchronized collectMetrics."""
-    with _metrics_lock:
-        REQUEST_METRICS.append(Metrics(req))
+    if LEAK_ENABLED:
+        with _metrics_lock:
+            REQUEST_METRICS.append(Metrics(req))
 
 
 def credits_for_movie(movie: Movie) -> list:

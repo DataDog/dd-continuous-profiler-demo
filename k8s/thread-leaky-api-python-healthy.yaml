@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thread-leaky-api-python-healthy
+  namespace: profiling-demo
+  labels:
+    tags.datadoghq.com/env: prod
+    tags.datadoghq.com/service: thread-leaky-api-python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: thread-leaky-api-python
+  template:
+    metadata:
+      labels:
+        app: thread-leaky-api-python
+        tags.datadoghq.com/env: prod
+        tags.datadoghq.com/service: thread-leaky-api-python
+      annotations:
+        ad.datadoghq.com/thread-leaky-api-python.logs: '[{"source":"python","service":"thread-leaky-api-python"}]'
+    spec:
+      containers:
+        - name: thread-leaky-api-python
+          image: thread-leaky-api-python:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9086
+          env:
+            - name: LEAK_ENABLED
+              value: "0"
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_RUNTIME_METRICS_ENABLED
+              value: "true"
+            - name: DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED
+              value: "true"
+            - name: DD_PROFILING_ENABLED
+              value: "true"
+            - name: DD_PROFILING_UPLOAD_PERIOD
+              value: "10"
+            - name: DD_ENV
+              value: "prod"
+            - name: DD_SERVICE
+              value: "thread-leaky-api-python"
+            - name: DD_TAGS
+              value: "env:prod"
+            - name: DD_ENTITY_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: MOVIES_API_PORT
+              value: "9086"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9086
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9086
+            initialDelaySeconds: 10
+            periodSeconds: 30

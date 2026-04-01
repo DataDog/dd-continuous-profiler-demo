@@ -16,6 +16,7 @@ LOG = logging.getLogger(__name__)
 
 app = Flask(__name__)
 PORT = int(os.environ.get("MOVIES_API_PORT", "9087"))
+LEAK_ENABLED = os.environ.get("LEAK_ENABLED", "1") == "1"
 
 
 @app.route("/")
@@ -23,8 +24,9 @@ def index():
     # Force gen1 collections so runtime.python.gc.count.gen2 grows steadily.
     # gc.collect(1) increments gc.get_count()[2]; gc.collect(2) resets it to 0.
     # 10×/req at 5 req/s = 50 gen1/sec → count[2] ramps clearly over 15 min.
-    for _ in range(10):
-        gc.collect(1)
+    if LEAK_ENABLED:
+        for _ in range(10):
+            gc.collect(1)
     gen2 = gc.get_stats()[2]["collections"]
     return jsonify({
         "status": "gc pressure applied",

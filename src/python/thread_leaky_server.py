@@ -17,12 +17,14 @@ LOG = logging.getLogger(__name__)
 
 app = Flask(__name__)
 PORT = int(os.environ.get("MOVIES_API_PORT", "9086"))
+LEAK_ENABLED = os.environ.get("LEAK_ENABLED", "1") == "1"
 
 
 @app.route("/")
 def index():
-    t = threading.Thread(target=lambda: time.sleep(86400), daemon=True)
-    t.start()
+    if LEAK_ENABLED:
+        t = threading.Thread(target=lambda: time.sleep(86400), daemon=True)
+        t.start()
     return jsonify({
         "status": "thread spawned",
         "active_threads": threading.active_count(),

@@ -188,20 +188,24 @@ if [[ -n "$REBUILD_SVC" ]]; then
     # Restart deployment(s)
     case "$REBUILD_SVC" in
         leaky-api-python)
-            kubectl rollout restart deployment/leaky-api-python -n "$NAMESPACE"
+            kubectl rollout restart deployment/leaky-api-python deployment/leaky-api-python-healthy -n "$NAMESPACE"
             kubectl rollout status deployment/leaky-api-python -n "$NAMESPACE" --timeout=120s
+            kubectl rollout status deployment/leaky-api-python-healthy -n "$NAMESPACE" --timeout=120s
             ;;
         thread-leaky-api-python)
-            kubectl rollout restart deployment/thread-leaky-api-python -n "$NAMESPACE"
+            kubectl rollout restart deployment/thread-leaky-api-python deployment/thread-leaky-api-python-healthy -n "$NAMESPACE"
             kubectl rollout status deployment/thread-leaky-api-python -n "$NAMESPACE" --timeout=120s
+            kubectl rollout status deployment/thread-leaky-api-python-healthy -n "$NAMESPACE" --timeout=120s
             ;;
         gc-pressure-api-python)
-            kubectl rollout restart deployment/gc-pressure-api-python -n "$NAMESPACE"
+            kubectl rollout restart deployment/gc-pressure-api-python deployment/gc-pressure-api-python-healthy -n "$NAMESPACE"
             kubectl rollout status deployment/gc-pressure-api-python -n "$NAMESPACE" --timeout=120s
+            kubectl rollout status deployment/gc-pressure-api-python-healthy -n "$NAMESPACE" --timeout=120s
             ;;
         native-leaky-api-python)
-            kubectl rollout restart deployment/native-leaky-api-python -n "$NAMESPACE"
+            kubectl rollout restart deployment/native-leaky-api-python deployment/native-leaky-api-python-healthy -n "$NAMESPACE"
             kubectl rollout status deployment/native-leaky-api-python -n "$NAMESPACE" --timeout=120s
+            kubectl rollout status deployment/native-leaky-api-python-healthy -n "$NAMESPACE" --timeout=120s
             ;;
         loadgen)
             for dep in loadgen-leak-python loadgen-thread-leak-python loadgen-gc-pressure-python loadgen-native-leak-python; do
@@ -335,6 +339,10 @@ kubectl apply -f k8s/leaky-api-python.yaml
 kubectl apply -f k8s/thread-leaky-api-python.yaml
 kubectl apply -f k8s/gc-pressure-api-python.yaml
 kubectl apply -f k8s/native-leaky-api-python.yaml
+kubectl apply -f k8s/leaky-api-python-healthy.yaml
+kubectl apply -f k8s/thread-leaky-api-python-healthy.yaml
+kubectl apply -f k8s/gc-pressure-api-python-healthy.yaml
+kubectl apply -f k8s/native-leaky-api-python-healthy.yaml
 kubectl apply -f k8s/loadgen.yaml
 info "All manifests applied"
 
@@ -342,9 +350,13 @@ info "All manifests applied"
 if $IS_REBUILD; then
     step "  Restarting deployments for image refresh"
     kubectl rollout restart deployment/leaky-api-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/leaky-api-python-healthy -n "$NAMESPACE"
     kubectl rollout restart deployment/thread-leaky-api-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/thread-leaky-api-python-healthy -n "$NAMESPACE"
     kubectl rollout restart deployment/gc-pressure-api-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/gc-pressure-api-python-healthy -n "$NAMESPACE"
     kubectl rollout restart deployment/native-leaky-api-python -n "$NAMESPACE"
+    kubectl rollout restart deployment/native-leaky-api-python-healthy -n "$NAMESPACE"
     kubectl rollout restart deployment/loadgen-leak-python -n "$NAMESPACE"
     kubectl rollout restart deployment/loadgen-thread-leak-python -n "$NAMESPACE"
     kubectl rollout restart deployment/loadgen-gc-pressure-python -n "$NAMESPACE"
@@ -359,14 +371,26 @@ step "7/8  Waiting for pods to be ready"
 kubectl rollout status deployment/leaky-api-python -n "$NAMESPACE" --timeout=120s || \
     warn "leaky-api-python deployment not ready within 120s"
 
+kubectl rollout status deployment/leaky-api-python-healthy -n "$NAMESPACE" --timeout=120s || \
+    warn "leaky-api-python-healthy deployment not ready within 120s"
+
 kubectl rollout status deployment/thread-leaky-api-python -n "$NAMESPACE" --timeout=120s || \
     warn "thread-leaky-api-python deployment not ready within 120s"
+
+kubectl rollout status deployment/thread-leaky-api-python-healthy -n "$NAMESPACE" --timeout=120s || \
+    warn "thread-leaky-api-python-healthy deployment not ready within 120s"
 
 kubectl rollout status deployment/gc-pressure-api-python -n "$NAMESPACE" --timeout=120s || \
     warn "gc-pressure-api-python deployment not ready within 120s"
 
+kubectl rollout status deployment/gc-pressure-api-python-healthy -n "$NAMESPACE" --timeout=120s || \
+    warn "gc-pressure-api-python-healthy deployment not ready within 120s"
+
 kubectl rollout status deployment/native-leaky-api-python -n "$NAMESPACE" --timeout=120s || \
     warn "native-leaky-api-python deployment not ready within 120s"
+
+kubectl rollout status deployment/native-leaky-api-python-healthy -n "$NAMESPACE" --timeout=120s || \
+    warn "native-leaky-api-python-healthy deployment not ready within 120s"
 
 kubectl rollout status daemonset/datadog-agent -n "$NAMESPACE" --timeout=120s || \
     warn "datadog-agent daemonset not ready within 120s"
