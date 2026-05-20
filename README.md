@@ -1,6 +1,6 @@
 # dd-continuous-profiler-demo
 
-Example service used for the [_Read Between the Stacktraces: Investigations with Continuous Profiler_](https://www.dashcon.io/sessions/read-between-the-stacktraces-investigations-with-continuous-profiler/) workshop.
+Example service used for the [_Read Between the Stacktraces: Investigations with Continuous Profiler_](https://learn.datadoghq.com/courses/workshop-continuous-profiler) workshop.
 
 ## Pre-requisites
 1. Install Docker
