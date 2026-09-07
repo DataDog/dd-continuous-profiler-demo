@@ -12,7 +12,7 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.14.0'
     implementation 'org.mongodb:mongodb-driver-sync:4.11.5'
     implementation 'com.google.guava:guava:31.0.1-jre'
-    implementation 'org.slf4j:slf4j-api:2.0.18'
+    implementation 'org.slf4j:slf4j-api:2.0.19'
 
     runtimeOnly 'ch.qos.logback:logback-classic:1.4.0'
 }
