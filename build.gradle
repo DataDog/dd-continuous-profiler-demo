@@ -11,7 +11,7 @@ dependencies {
     implementation 'com.sparkjava:spark-core:2.9.4'
     implementation 'com.google.code.gson:gson:2.14.0'
     implementation 'org.mongodb:mongodb-driver-sync:5.13.0'
-    implementation 'com.google.guava:guava:31.0.1-jre'
+    implementation 'com.google.guava:guava:32.1.0-jre'
     implementation 'org.slf4j:slf4j-api:2.0.20'
 
     runtimeOnly 'ch.qos.logback:logback-classic:1.4.12'
